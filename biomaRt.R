@@ -29,3 +29,13 @@ bed_df <- data.frame(
 bed_df <- bed_df[order(bed_df$chrom, bed_df$start), ]
 
 head(bed_df)
+
+
+# > head(bed_df)
+# chrom    start      end    name
+# 338  chr1  1001137  1014540   ISG15
+# 633  chr1  1211325  1214153 TNFRSF4
+# 634  chr1  7915870  7943165 TNFRSF9
+# 458  chr1  9629888  9729114  PIK3CD
+# 381  chr1 11022008 11047239   MASP2
+# 402  chr1 11106534 11262556    MTOR
