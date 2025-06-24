@@ -1,0 +1,4 @@
+patient,sample,lane,fastq_1,fastq_2
+Patient_2,Patient_2,1,/home/akorosteleva/tutorial/example_1/Patient_2_L001_R1.fastq.gz,/home/akorosteleva/tutorial/example_1/Patient_2_L001_R2.fastq.gz
+Patient_23,Patient_23,1,/home/akorosteleva/tutorial/example_1/Patient_23_R1.fastq.gz,/home/akorosteleva/tutorial/example_1/Patient_23_R2.fastq.gz
+Patient_25,Patient_25,1,/home/akorosteleva/tutorial/example_1/Patient_25_L001_R1.fastq.gz,/home/akorosteleva/tutorial/example_1/Patient_25_L001_R2.fastq.gz
