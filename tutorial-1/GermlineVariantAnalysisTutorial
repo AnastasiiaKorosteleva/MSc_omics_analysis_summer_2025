@@ -1,0 +1,123 @@
+---
+title: "Germline Variant Analysis Tutorial"
+author: "Anastasiia Korosteleva"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(data.table)
+library(ggplot2)
+library(stringr)
+```
+
+## Introduction
+
+This tutorial introduces **germline variant analysis** using targeted panel sequencing data. We explore real-world samples from the study:
+
+> **Clinical impact of a targeted next-generation sequencing gene panel for autoinflammation and vasculitis** (Omoyinmi et al., PLoS ONE)
+
+We'll analyze annotated variants from three example patients:
+
+- **Patient 2:** chr10-70598687-G>C  
+- **Patient 23:** PTEN c.650T>G (p.Val217Gly)  
+- **Patient 25:** RNF213 c.12034T>C (p.Cys4012Arg)  
+
+The data were processed with the `nf-core/sarek` pipeline (v3.4.2) using both DeepVariant and HaplotypeCaller, with annotations from **VEP** (Variant Effect Predictor).
+
+---
+
+## Objectives
+
+By the end of this session, you will be able to:
+
+1. Load and explore annotated VCF files.  
+2. Extract and filter variants by impact or gene.  
+3. Visualize the variant consequence spectrum.  
+4. Interpret example variants in a clinical context.  
+
+---
+
+## Task 1: Load VEP-Annotated VCF as Table
+
+```{r load-vep-table}
+vcf_data <- fread("/home/akorosteleva/tutorial/example_1/results/annotation/haplotypecaller/Patient_2/Patient_2.haplotypecaller.filtered_VEP.ann.vcf", skip = 3401)
+
+# Save as CSV
+fwrite(vcf_data, "/home/akorosteleva/tutorial/example_1/results/annotation/haplotypecaller/Patient_2/Patient_2.vep_annotated.csv")
+
+head(vcf_data)
+```
+
+---
+
+## Task 2: Filter Damaging Variants
+
+```{r filter-damaging}
+vcf_csv <- read.csv("/home/akorosteleva/tutorial/example_1/results/annotation/haplotypecaller/Patient_2/Patient_2.vep_annotated.csv")
+
+# Filter for likely damaging/pathogenic, excluding uncertain or benign
+vcf_damaging <- vcf_csv %>%
+  filter(grepl("damaging|pathogenic|High Impact", INFO, ignore.case = TRUE)) %>%
+  filter(!str_detect(INFO, regex("uncertain_significance|benign", ignore_case = TRUE)))
+
+dim(vcf_damaging)
+```
+
+---
+
+## Task 3: Visualize Variant Consequences
+
+```{r consequence-plot}
+# Extract CSQ field and consequence types
+extract_csq <- function(info_str) {
+  parts <- strsplit(info_str, ";")[[1]]
+  csq_entry <- grep("^CSQ=", parts, value = TRUE)
+  if (length(csq_entry) == 0) return(NA)
+  return(strsplit(sub("^CSQ=", "", csq_entry), ",")[[1]])
+}
+
+csq_data <- vcf_damaging$INFO %>%
+  lapply(extract_csq) %>%
+  unlist() %>%
+  strsplit("\\|") %>%  # Corrected here
+  lapply(function(x) if (length(x) >= 2) x[2] else NA) %>%
+  unlist()
+
+
+csq_df <- data.frame(Consequence = csq_data) %>%
+  filter(!is.na(Consequence)) %>%
+  group_by(Consequence) %>%
+  summarise(N = n()) %>%
+  arrange(desc(N))
+
+ggplot(csq_df, aes(x = reorder(Consequence, -N), y = N)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Distribution of Damaging Consequences", x = "Consequence", y = "Count")
+```
+
+---
+
+Why we have 10 variants and 11 consequence annotations ?
+
+Some variants may have multiple consequence annotations in the CSQ field (e.g., multiple transcripts), so one variant can contribute more than one consequence.
+
+
+
+
+## Task 4: Investigate NM_001083116.3(PRF1):c.1034C>G (p.Pro345Arg) Variant
+
+```{r explore-PRF1}
+# Search for variants annotated with PRF1 in the INFO column
+prf1_variants <- vcf_csv %>%
+  dplyr::filter(grepl("PRF1", INFO, ignore.case = TRUE))
+
+# Display matching variants
+prf1_variants %>%
+  dplyr::select(X.CHROM, POS, REF, ALT, INFO)
+
+```
