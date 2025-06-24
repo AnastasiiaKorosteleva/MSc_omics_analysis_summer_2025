@@ -1,0 +1,104 @@
+---
+title: "MAF Analysis with maftools - Filtered by COSMIC Genes"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Load Libraries and MAF Data
+
+```{r}
+library(maftools)
+
+maf_file <- "/home/akorosteleva/tutorial/example_2/results/maf_files/merged_8_patients.maf"
+
+# Create example clinical data with survival info for 8 patients
+clinical_df <- data.frame(
+  Tumor_Sample_Barcode = c(
+    "P10_cSCC_WES_SRR11870485", "P2_cSCC_WES_SRR11870469",
+    "P3_cSCC_WES_SRR11870471", "P5_cSCC_WES_SRR11870475",
+    "P6_cSCC_WES_SRR11870477", "P7_cSCC_WES_SRR11870479",
+    "P8_cSCC_WES_SRR11870481", "P9_cSCC_WES_SRR11870483"
+  ),
+  Overall_Survival_Status = c(1, 1, 0, 1, 0, 1, 1, 0),
+  Overall_Survival_Time = c(24, 18, 36, 12, 40, 10, 20, 32),
+  stringsAsFactors = FALSE
+)
+
+maf_data <- read.maf(maf = maf_file, clinicalData = clinical_df)
+```
+
+## 2. Summary and Overview
+
+```{r}
+getSampleSummary(maf_data)
+getGeneSummary(maf_data)
+getFields(maf_data)
+
+plotmafSummary(maf = maf_data, rmOutlier = TRUE, addStat = 'median', dashboard = TRUE)
+oncoplot(maf = maf_data, top = 30, legend_height = 6, fontSize = 0.5)
+```
+
+## 3. Filter Based on COSMIC Genes
+
+```{r}
+cosmic_file <- "/home/akorosteleva/tutorial/example_2/working_folder/Cosmic_CancerGeneCensus_v102_GRCh38.tsv"
+cosmic_data <- read.delim(cosmic_file, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+gene_names <- unique(cosmic_data$GENE_SYMBOL)
+
+maf_data_filtered <- subsetMaf(maf = maf_data, genes = gene_names)
+oncoplot(maf = maf_data_filtered, top = 30, legend_height = 6, fontSize = 0.5)
+```
+
+## 4. Transitions and Transversions
+
+```{r}
+titv = titv(maf = maf_data_filtered, plot = FALSE, useSyn = TRUE)
+plotTiTv(res = titv)
+```
+
+> It's important to keep in mind that not all of these mutations are drivers or even relevant to this cancer type. Many may have no functional impact. Therefore, additional filtering based on predicted functional effect (e.g., high or moderate impact) and clinical annotation should also be considered.
+
+## 5. Keep Only Pathogenic Variants
+
+```{r}
+# Extract the MAF as a data frame
+maf_df <- maf_data_filtered@data
+
+# Convert to lowercase and trim whitespace
+maf_df$CLIN_SIG_clean <- trimws(tolower(maf_df$CLIN_SIG))
+
+# Define allowed CLIN_SIG values (also lowercase and trimmed)
+keep_values <- c(
+  "pathogenic,pathogenic/likely_pathogenic,likely_pathogenic",
+  "pathogenic,pathogenic/likely_pathogenic",
+  "pathogenic",
+  "pathogenic,likely_pathogenic",
+  "drug_response,pathogenic,likely_pathogenic,not_provided",
+  "likely_pathogenic,pathogenic",
+  "likely_pathogenic"
+)
+
+# Filter
+maf_df_strict <- maf_df[maf_df$CLIN_SIG_clean %in% keep_values, ]
+
+maf_data_filtered_strict <- read.maf(
+  maf = maf_df_strict,
+  clinicalData = clinical_df
+)
+
+oncoplot(maf_data_filtered_strict, top=30)
+```
+
+## 6. Suggested Next Steps
+
+Please read  
+[maftools vignette](https://bioconductor.org/packages/devel/bioc/vignettes/maftools/inst/doc/maftools.html)  
+and explore other functions such as:  
+- Survival Analysis  
+- Detecting Cancer Driver Genes  
+- Lollipop Plots  
+- Drug-Gene Interactions  
+- Oncogenic Signaling Pathways
