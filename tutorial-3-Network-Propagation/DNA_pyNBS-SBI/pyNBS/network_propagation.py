@@ -1,0 +1,130 @@
+#######################################################
+# ---------- Network Propagation Functions ---------- #
+#######################################################
+
+import networkx as nx
+import time
+import numpy as np
+import pandas as pd
+
+# Normalize network (or network subgraph) for random walk propagation
+# If symmetric norm is used then the adjacency matrix is normalized as D^-0.5 * A * D^-0.5
+# Otherwise the network is normalized as A*D-1
+# Where D is the diagonalized degree (default is colsum) of the adjacency matrix A
+def normalize_network(network, symmetric_norm=False):
+    adj_mat = nx.adjacency_matrix(network)
+    adj_array = np.array(adj_mat.todense())
+    if symmetric_norm:
+        D = np.diag(1 / np.sqrt(adj_array.sum(axis=1)))
+        adj_array_norm = np.dot(np.dot(D, adj_array), D)
+    else:
+        degree = adj_array.sum(axis=1)
+        adj_array_norm = (adj_array / degree[:, None]).T
+    return adj_array_norm
+
+# Closed form random-walk propagation (as seen in HotNet2) for each subgraph: Ft = (1-alpha)*Fo * (I-alpha*norm_adj_mat)^-1
+# Concatenate to previous set of subgraphs
+def fast_random_walk(alpha, binary_mat, subgraph_norm, prop_data_prev):
+    term1 = (1 - alpha) * binary_mat
+    term2 = np.identity(binary_mat.shape[1]) - alpha * subgraph_norm
+    term2_inv = np.linalg.inv(term2)
+    subgraph_prop = np.dot(term1, term2_inv)
+    prop_data_add = np.concatenate((prop_data_prev, subgraph_prop), axis=1)
+    return prop_data_add
+
+# Wrapper for random walk propagation of full network by subgraphs
+# Implementation is based on the closed form of the random walk model over networks presented by the HotNet2 paper
+def network_propagation(network, binary_matrix, alpha=0.7, symmetric_norm=False, verbose=True, **save_args):
+    # Parameter error check
+    alpha = float(alpha)
+    if alpha <= 0.0 or alpha >= 1.0:
+        raise ValueError('Alpha must be a value between 0 and 1')
+
+    # Begin network propagation
+    starttime = time.time()
+    if verbose:
+        print('Performing network propagation with alpha:', alpha)
+
+    # Separate network into connected components
+    subgraphs = [network.subgraph(c).copy() for c in nx.connected_components(network)]
+
+    # Initialize propagation results by propagating first subgraph
+    subgraph = subgraphs[0]
+    subgraph_nodes = list(subgraph.nodes)
+    prop_data_node_order = list(subgraph_nodes)
+    binary_matrix_filt = binary_matrix.loc[:, subgraph_nodes].fillna(0).values
+    subgraph_norm = normalize_network(subgraph, symmetric_norm=symmetric_norm)
+    prop_data_empty = np.zeros((binary_matrix_filt.shape[0], 1))
+    prop_data = fast_random_walk(alpha, binary_matrix_filt, subgraph_norm, prop_data_empty)
+
+    # Get propagated results for remaining subgraphs
+    for subgraph in subgraphs[1:]:
+        subgraph_nodes = list(subgraph.nodes)
+        prop_data_node_order.extend(subgraph_nodes)
+        binary_matrix_filt = binary_matrix.loc[:, subgraph_nodes].fillna(0).values
+        subgraph_norm = normalize_network(subgraph, symmetric_norm=symmetric_norm)
+        prop_data = fast_random_walk(alpha, binary_matrix_filt, subgraph_norm, prop_data)
+
+    # Return propagated result as dataframe
+    prop_data_df = pd.DataFrame(data=prop_data[:, 1:], index=binary_matrix.index, columns=prop_data_node_order)
+
+    # Saving the propagation result
+    if 'outdir' in save_args:
+        save_path = save_args['outdir']
+        if 'job_name' in save_args:
+            save_path += save_args['job_name']
+        save_path += '_prop'
+        if 'iteration_label' in save_args:
+            save_path += f"_{save_args['iteration_label']}"
+        save_path += '.csv'
+        prop_data_df.to_csv(save_path)
+        if verbose:
+            print('Network Propagation Result Saved:', save_path)
+
+    if verbose:
+        print('Network Propagation Complete:', time.time() - starttime, 'seconds')
+    return prop_data_df
+
+# Wrapper for propagating binary mutation matrix over network by subgraph given network propagation kernel
+def network_kernel_propagation(network, network_kernel, binary_matrix, verbose=False, **save_args):
+    starttime = time.time()
+    if verbose:
+        print('Performing network propagation with network kernel')
+
+    # Separate network into connected components
+    subgraph_nodelists = list(nx.connected_components(network))
+
+    # Initialize propagation results by propagating first subgraph
+    prop_nodelist = list(subgraph_nodelists[0])
+    prop_data = np.dot(
+        binary_matrix.loc[:, prop_nodelist].fillna(0).values,
+        network_kernel.loc[prop_nodelist, prop_nodelist].values,
+    )
+
+    # Get propagated results for remaining subgraphs
+    for nodelist in subgraph_nodelists[1:]:
+        subgraph_nodes = list(nodelist)
+        prop_nodelist.extend(subgraph_nodes)
+        subgraph_prop_data = np.dot(
+            binary_matrix.loc[:, subgraph_nodes].fillna(0).values,
+            network_kernel.loc[subgraph_nodes, subgraph_nodes].values,
+        )
+        prop_data = np.concatenate((prop_data, subgraph_prop_data), axis=1)
+
+    # Return propagated result as dataframe
+    prop_data_df = pd.DataFrame(data=prop_data, index=binary_matrix.index, columns=prop_nodelist)
+
+    # Saving the propagation result
+    if 'outdir' in save_args:
+        save_path = save_args['outdir']
+        if 'job_name' in save_args:
+            save_path += save_args['job_name']
+        save_path += '_prop'
+        if 'iteration_label' in save_args:
+            save_path += f"_{save_args['iteration_label']}"
+        save_path += '.csv'
+        prop_data_df.to_csv(save_path)
+
+    if verbose:
+        print('Network Propagation Complete:', time.time() - starttime, 'seconds')
+    return prop_data_df

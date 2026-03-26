@@ -1,0 +1,30 @@
+Metadata-Version: 2.4
+Name: pyNBS
+Version: 0.2.0
+Summary: Python package to perform network based stratification of binary somatic mutations as described in Hofree et al 2013.
+Home-page: https://github.com/huangger/pyNBS
+Author: Justin Huang
+Author-email: jkh013@ucsd.edu
+License: MIT
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Software Development :: Build Tools
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 2.7
+License-File: LICENSE
+Requires-Dist: lifelines>=0.9.1
+Requires-Dist: networkx>=2.0
+Requires-Dist: numpy>=1.11.0
+Requires-Dist: matplotlib>=1.5.1
+Requires-Dist: pandas>=0.19.0
+Requires-Dist: scipy>=0.17.0
+Requires-Dist: scikit-learn>=0.17.1
+Requires-Dist: seaborn>=0.7.1
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: home-page
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary
